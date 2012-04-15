@@ -25,6 +25,7 @@ require 'uri'
 require 'cgi'
 require 'openssl'
 require 'date'
+require 'nokogiri'
 
 class Browser
 
@@ -107,10 +108,12 @@ class Browser
           loc = "#{url.scheme}://#{url.host}:#{url.port}"+loc
         end
         with_referer url.to_s do
-          res = request Net::HTTP::Get, loc, :no_follow => true
+          res = request(Net::HTTP::Get, loc, :no_follow => true).http
         end
       end
     end
+    
+    res = BrowserResponse.new res
     
     if block_given?
       with_referer url.to_s do
@@ -162,4 +165,16 @@ class Browser
     @conns[[host,port]] ||= Net::HTTP.new host, port
   end
   
+end
+
+class BrowserResponse
+  attr_reader :http
+  
+  def initialize(http_response)
+    @http = http_response
+  end
+  
+  def dom
+    @dom ||= Nokogiri::HTML(@http.body)
+  end
 end
