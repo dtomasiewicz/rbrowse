@@ -178,8 +178,8 @@ class BrowserResponse
     @dom ||= Nokogiri::HTML(@http.body)
   end
   
-  def form_data(id)
-    node = dom.at_css '#'+id
+  def form_data(selector)
+    node = dom.at_css selector
     node ? collect_form_data(node) : nil
   end
   
@@ -194,15 +194,17 @@ def collect_form_data(form_node)
         case el['type'].downcase
         when 'radio','checkbox'
           data[el['name']] = el['value'] || 1 if el.matches?('[@checked="checked"]')
+        when 'submit', 'reset'
+          # do nothing
         else
           data[el['name']] = el['value']
         end
       when 'select'
-        data[el['name']] = el.at_css('option[@selected="selected"]')['value']
+        selected = el.at_css 'option[@selected="selected"]'
+        data[el['name']] = selected['value'] if selected
       when 'textarea'
         data[el['name']] = el.inner_text # should this be decoded?
-      when 'button'
-        data[el['name']] = el['value']
+      # do nothing with BUTTON
       end
     end
   end
