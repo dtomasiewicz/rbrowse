@@ -14,14 +14,14 @@ When a request sent to a Browser instance is accompanied by a block, the block
 will be executed after a response is received (and after redirects unless
 :no_follow is specified).
 
-    b = Browser.new
+    b = RBrowser.new
     b.get 'http://duckduckgo.com' do |res|
       puts res
     end
 
 Note that the above is functionally equivalent to:
 
-    b = Browser.new
+    b = RBrowser.new
     puts b.get 'http://duckduckgo.com'
 
 So why use a block? Because any subsequent requests made from within the block 
@@ -32,7 +32,7 @@ Additionally, when performing requests within a block, you may supply only the
 request _path_. If you do so, the domain of the referring request will be assumed.
 Example:
 
-    b = Browser.new
+    b = RBrowse.new
     b.get 'http://duckduckgo.com' do |res|
       puts b.get_with_data '/', :q => 'search term'
     end

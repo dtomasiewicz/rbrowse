@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # Example script to login to a website
 
-require_relative 'rbrowser'
+require 'r_browse'
 
 URLS = {
   # fill in these values correctly with full URLs
@@ -14,7 +14,7 @@ FORM_SELECTOR = '#login_form'
 USERNAME = 'my_username'
 PASSWORD = 'my_password'
 
-b = Browser.new :chrome
+b = RBrowse.new :chrome
 b.get URLS[:login_form] do |res|
   if data = res.form_data(FORM_SELECTOR)
     b.post URLS[:login_proc], data.merge('username' => USERNAME, 'password' => PASSWORD)
