@@ -2,23 +2,6 @@
 #
 # @author Daniel Tomasiewicz
 #
-# Example usage:
-# 
-#   b = Browser.new :chrome
-#   b.get 'http://google.ca' do
-#     b.get '/?q=hello+world' do |res|
-#       puts res
-#     end
-#   end
-#
-# The above will:
-#  - make a GET request to http://google.ca
-#  - follow the redirect to https://www.google.ca
-#  - make a GET request to https://www.google.ca/?q=hello+world with
-#    http://www.google.ca as the referer and print the output
-#  - and it will appear to the web server as though all this was done by a 
-#    human using Google Chrome (except, of course, it'll be faster)
-#
 
 require 'net/http'
 require 'uri'
@@ -39,11 +22,11 @@ class Browser
     http: 80
   }
   
-  attr_accessor :user_agent, :cookies
+  attr_accessor :user_agent
   
   def initialize(user_agent = :default)
     @user_agent = USER_AGENTS[user_agent] || user_agent
-    @cookies = {}
+    @cookies = []
     @conns = {}
   end
   
@@ -57,10 +40,30 @@ class Browser
   
   # injects the given data into the query string
   def get_with_data(url, data = {}, params = {}, &block)
+    # stringify keys
+    data.keys.each do |k|
+      data[k.to_s] = data.delete k
+    end
     url = split_url url
     qs = (url[:query] ? CGI::parse(url[:query]) : {}).merge data
     url[:query] = qs.keys.map{|k|"#{CGI::escape k}=#{CGI::escape qs[k]}"}.join '&'
     get join_url(url), params, &block
+  end
+  
+  def cookies(domain, path = '/')
+    # delete expired cookies
+    @cookies = @cookies.reject{|c|c[:expires] && c[:expires] <= DateTime.now}
+    
+    # TODO: this is slow; come up with a better way to index cookies by domain/path
+    matched_cookies = {}
+    @cookies.each do |c|
+      if domain == c[:domain] || c[:domain].end_with?('.'+domain)
+        if path.start_with?(c[:path])
+          matched_cookies[c[:name]] = c
+        end
+      end
+    end
+    matched_cookies
   end
   
   private
@@ -77,42 +80,45 @@ class Browser
     if !url[:scheme]
       # if only a path is given, get rest from referer
       if @referer
-        url = full_url url, @referer
+        url = full_url url, split_url(@referer)
       else
         raise "Must give a full URL when outside of a block."
       end
     end
+    url[:path] = '/' if url[:path] == ''
     
     http = conn url[:host], (url[:port] || DEFAULT_PORTS[url[:scheme].to_sym])
     if url[:scheme] == 'https'
       http.use_ssl = true
       http.ssl_version = ssl_version
-      http.verify_mode = OpenSSL::SSL::VERIFY_NONE #insecure!
+      http.verify_mode = OpenSSL::SSL::VERIFY_NONE # unsafe
     else
       http.use_ssl = false
     end
     
-    reqpath = url[:path] == '' ? '/' : url[:path]
-    reqpath += '?'+url[:query] if url[:query]
-    req = klass.new reqpath
+    # create request object
+    req = klass.new "#{url[:path]}#{'?'+url[:query] if url[:query]}"
     
+    # set request headers
     req['Host'] = url[:host]
     req['Host'] += ':'+url[:port] if url[:port]
-    
-    request_headers.each_pair do |h,v|
-      req[h] = v
+    req['User-Agent'] = @user_agent
+    if cookie = get_url_cookie(url)
+      req['Cookie'] = cookie 
     end
     
+    # append data
     if params[:data]
       req.set_form_data params[:data]
     end
     
+    # execute
     res = http.request req
     
-    # parse all Set-Cookie headers
+    # parse Set-Cookie response headers
     if scfields = res.get_fields('Set-Cookie')
       scfields.each do |sc|
-        set_cookie sc
+        set_url_cookie url, sc
       end
     end
     
@@ -149,34 +155,46 @@ class Browser
     @referer = old_ref
   end
   
-  def set_cookie(sc)
-    name, sc = sc.split '=', 2
+  # produces a cookie header for a split request url
+  def get_url_cookie(url)
+    matched_cookies = cookies url[:host], url[:path]
+    if matched_cookies.length > 0
+      return matched_cookies.values.map do |c|
+        "#{CGI::escape(c[:name])}=#{CGI::escape(c[:value])}"
+      end.join ';'
+    else
+      return nil
+    end
+  end
+  
+  def set_url_cookie(url, cookie)
+    name, cookie = cookie.split '=', 2
     name = CGI::unescape(name)
-    value, sc = sc.split ';', 2
+    value, cookie = cookie.split ';', 2
     value = CGI::unescape(value)
     opts = {}
-    sc && sc.split(';').each do |opt|
+    cookie && cookie.split(';').each do |opt|
       opt, optval = opt.split '=', 2
       opts[opt.downcase] = (optval && CGI::unescape(optval)) || true
     end
-    @cookies[name] = CGI::Cookie.new({
-      'name' => name,
-      'value' => value,
-      'path' => opts['path'] || '/',
-      'domain' => opts['domain'],
-      'expires' => opts['expires'] ? DateTime.parse(opts['expires']) : nil,
-      'secure' => opts['secure']
-    })
-  end
-  
-  def request_headers
-    headers = {'User-Agent' => @user_agent}
-    if @cookies.length > 0
-      headers['Cookie'] = @cookies.values.map do |c|
-        "#{CGI::escape(c.name)}=#{CGI::escape(c.value.first)}"
-      end.join ';'
+    
+    parsed = {
+      name: name,
+      value: value,
+      path: opts['path'],
+      domain: opts['domain'],
+      expires: opts['expires'] ? DateTime.parse(opts['expires']) : nil,
+      secure: opts['secure']
+    }
+    parsed[:path] ||= url[:path][0..url[:path].rindex('/')]
+    # restrict to setting domain
+    # not spec-compliant and possibly unsafe (allows infinite levels of subdomains)
+    unless parsed[:domain] &&
+      (parsed[:domain] == url[:host] || parsed[:domain].end_with?('.'+url[:host]))
+      parsed[:domain] = url[:host]
     end
-    headers
+    
+    @cookies << parsed
   end
   
   def conn(host, port)
@@ -189,7 +207,7 @@ class Browser
   
   def join_url(url)
     out = ""
-    out += url[:scheme]+"://"
+    out += url[:scheme]+"://" if url[:scheme]
     if url[:scheme] || url[:host]
       out += url[:userinfo]+"@" if url[:userinfo]
       out += url[:host]
@@ -202,11 +220,11 @@ class Browser
     out
   end
   
-  def full_url(partial, reference)
-    partial.merge :scheme => reference[:scheme],
-                  :userinfo => reference[:userinfo],
-                  :host => reference[:host],
-                  :port => reference[:port]
+  def full_url(partial, ref)
+    partial.merge :scheme => ref[:scheme],
+                  :userinfo => ref[:userinfo],
+                  :host => ref[:host],
+                  :port => ref[:port]
   end
   
 end
@@ -233,9 +251,15 @@ class BrowserResponse
   
 end
 
+# note: values from BUTTON and input[type=button|submit|image|reset] are 
+#   traditionally only sent when clicked to provoke form submission, any 
+#   many websites rely on browsers behaving this way. because of this,
+#   collect_form_data does ignores any such values. if you want the website
+#   to think you selected a particular submission component, you'll have to
+#   add in that element's value manually.
 def collect_form_data(form_node)
   data = {}
-  form_node.css('input,select,textarea,button').each do |el|
+  form_node.css('input,select,textarea').each do |el|
     if el['name']
       case el.name.downcase
       when 'input'
@@ -244,17 +268,16 @@ def collect_form_data(form_node)
           if el.matches?('[@checked="checked"]')
             data[el['name']] = el['value'] || 1
           end
-        when 'submit', 'reset', 'image'
-          # do nothing (usually only passed if clicked)
-        else
+        when 'submit', 'reset', 'image', 'button'
+          # ignore
+        else # assume a text box at this point
           data[el['name']] = el['value']
         end
       when 'select'
         selected = el.at_css 'option[@selected="selected"]'
         data[el['name']] = selected['value'] if selected
       when 'textarea'
-        data[el['name']] = el.inner_text # should this be decoded?
-      # do nothing with BUTTON
+        data[el['name']] = el.inner_text # TODO: check if this should be decoded
       end
     end
   end
