@@ -15,9 +15,9 @@ USERNAME = 'my_username'
 PASSWORD = 'my_password'
 
 b = Browser.new :chrome
-@browser.get URLS[:login_form] do |res|
+b.get URLS[:login_form] do |res|
   if data = res.form_data(FORM_SELECTOR)
-    @browser.post URLS[:login_proc], data.merge('username' => USERNAME, 'password' => PASSWORD)
+    b.post URLS[:login_proc], data.merge('username' => USERNAME, 'password' => PASSWORD)
     # if all went well, subsequent requests will be made as though you are logged in
   end
 end
