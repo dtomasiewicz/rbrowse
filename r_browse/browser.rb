@@ -64,14 +64,7 @@ module RBrowse
       end
       url.path = '/' if url.path == ''
       
-      http = conn url.host, (url.port || DEFAULT_PORTS[url.scheme])
-      if url.scheme == 'https'
-        http.use_ssl = true
-        http.ssl_version = ssl_version
-        http.verify_mode = OpenSSL::SSL::VERIFY_NONE # unsafe
-      else
-        http.use_ssl = false
-      end
+      http = conn url
       
       # create request object
       req = klass.new "#{url.path}#{'?'+url.query if url.query}"
@@ -128,8 +121,19 @@ module RBrowse
       @referer = old_ref
     end
     
-    def conn(host, port)
-      @conns[[host, port]] ||= Net::HTTP.new host, port
+    def conn(url)
+      port = url.port || DEFAULT_PORTS[url.scheme]
+      id = [url.host, port, url.scheme]
+      unless (c = @conns[id]) && c.started?
+        c = @conns[id] = Net::HTTP.new(url.host, port)
+        if url.scheme == 'https'
+          c.use_ssl = true
+          c.ssl_version = ssl_version
+          c.verify_mode = OpenSSL::SSL::VERIFY_NONE # unsafe
+        end
+        c.start
+      end
+      c
     end
     
   end
