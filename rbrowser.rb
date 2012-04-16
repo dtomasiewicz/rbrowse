@@ -50,6 +50,14 @@ class Browser
     request Net::HTTP::Get, url, params, &block
   end
   
+  # injects the given data into the query string
+  def get_with_data(url, data = {}, params = {}, &block)
+    url = split_url url
+    qs = (url[:query] ? CGI::parse(url[:query]) : {}).merge data
+    url[:query] = qs.keys.map{|k|"#{CGI::escape k}=#{CGI::escape qs[k]}"}.join '&'
+    get join_url(url), params, &block
+  end
+  
   private
   
   def ssl_version
@@ -60,22 +68,18 @@ class Browser
   end
   
   def request(klass, url, params = {})
-    url = URI.parse url
-    if !url.scheme
+    url = split_url url
+    if !url[:scheme]
       # if only a path is given, get rest from referer
       if @referer
-        ref = URI.parse @referer
-        url.scheme = ref.scheme
-        url.host = ref.host
-        url.port = ref.port
+        url = full_url url, @referer
       else
         raise "Must give a full URL when outside of a block."
       end
     end
-    url.path = '/' if url.path.empty?
     
-    http = conn url.host, url.port
-    if url.scheme == 'https'
+    http = conn url[:host], url[:port]
+    if url[:scheme] == 'https'
       http.use_ssl = true
       http.ssl_version = ssl_version
       http.verify_mode = OpenSSL::SSL::VERIFY_NONE #insecure!
@@ -83,14 +87,21 @@ class Browser
       http.use_ssl = false
     end
     
-    req = klass.new url.path
-    if params[:data]
-      req.set_form_data params[:data]
-    end
+    reqpath = url[:path] == '' ? '/' : url[:path]
+    reqpath += '?'+url[:query] if url[:query]
+    req = klass.new reqpath
+    
+    req['Host'] = url[:host]
+    req['Host'] += ':'+url[:port] if url[:port]
+    
     request_headers.each_pair do |h,v|
       req[h] = v
     end
-      
+    
+    if params[:data]
+      req.set_form_data params[:data]
+    end
+    
     res = http.request req
     
     # parse all Set-Cookie headers
@@ -103,20 +114,22 @@ class Browser
     # follow redirects
     unless params[:no_follow]
       while loc = res['Location']
-        if loc =~ /^\//
+        loc = split_url loc
+        if !loc[:scheme]
           # compensate for spec-defying path-passers
-          loc = "#{url.scheme}://#{url.host}:#{url.port}"+loc
+          loc = full_url loc, url
         end
-        with_referer url.to_s do
-          res = request(Net::HTTP::Get, loc, :no_follow => true).http
+        with_referer join_url(url) do
+          res = request(Net::HTTP::Get, join_url(loc), :no_follow => true).http
         end
+        url = loc
       end
     end
     
     res = BrowserResponse.new res
     
     if block_given?
-      with_referer url.to_s do
+      with_referer join_url(url) do
         yield res if block_given?
       end
     end
@@ -165,6 +178,32 @@ class Browser
     @conns[[host,port]] ||= Net::HTTP.new host, port
   end
   
+  def split_url(url)
+    Hash[[:scheme, :userinfo, :host, :port, :registry, :path, :opaque, :query, :fragment].zip URI::split(url)]
+  end
+  
+  def join_url(url)
+    out = ""
+    out += url[:scheme]+"://"
+    if url[:scheme] || url[:host]
+      out += url[:userinfo]+"@" if url[:userinfo]
+      out += url[:host]
+      out += ":"+url[:port] if url[:port]
+    end
+    out += url[:path] if url[:path]
+    out += "?"+url[:query] if url[:query]
+    out += "#"+url[:fragment] if url[:fragment]
+    #todo: not sure what to do with registry, opaque
+    out
+  end
+  
+  def full_url(partial, reference)
+    partial.merge :scheme => reference[:scheme],
+                  :userinfo => reference[:userinfo],
+                  :host => reference[:host],
+                  :port => reference[:port]
+  end
+  
 end
 
 class BrowserResponse
@@ -181,6 +220,10 @@ class BrowserResponse
   def form_data(selector)
     node = dom.at_css selector
     node ? collect_form_data(node) : nil
+  end
+  
+  def to_s
+    @http.body
   end
   
 end
