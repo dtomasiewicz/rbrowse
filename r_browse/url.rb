@@ -26,6 +26,10 @@ module RBrowse
       s
     end
     
+    def full?
+      !!(scheme && host && path)
+    end
+    
     def absolute(base)
       copy = dup
       copy.absolute!(base)

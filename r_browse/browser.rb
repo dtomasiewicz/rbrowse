@@ -1,11 +1,6 @@
 module RBrowse
 
   class Browser
-
-    USER_AGENTS = {
-      default: 'rBrowser',
-      chrome: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.11 (KHTML, like Gecko) Chrome/17.0.963.79 Safari/535.11'
-    }
     
     DEFAULT_PORTS = {
       'https' => 443,
@@ -14,8 +9,8 @@ module RBrowse
     
     attr_accessor :user_agent
     
-    def initialize(user_agent = :default)
-      @user_agent = USER_AGENTS[user_agent] || user_agent
+    def initialize(user_agent = 'RBrowse')
+      @user_agent = user_agent
       @cookies = CookieJar.new
       @conns = {}
     end
@@ -30,18 +25,49 @@ module RBrowse
     
     # injects the given data into the query string
     def get_with_data(url, data = {}, params = {}, &block)
-      url = URL.new url if url.kind_of?(String)
+      url = normalize_url url
       qs = (url.query ? CGI::parse(url.query) : {}).merge data
       url.query = qs.keys.map{|k|"#{CGI::escape k}=#{CGI::escape qs[k]}"}.join '&'
       get url, params, &block
     end
     
     def cookies(url)
-      url = URL.new url if url.kind_of?(String)
-      @cookies.for_url url
+      @cookies.for_url normalize_url(url)
+    end
+    
+    def connection(url)
+      url = normalize_url url
+      port = url.port || DEFAULT_PORTS[url.scheme]
+      id = [url.host, port, url.scheme]
+      unless conn = @conns[id]
+        conn = @conns[id] = Net::HTTP.new(url.host, port)
+        if url.scheme == 'https'
+          conn.use_ssl = true
+          conn.ssl_version = ssl_version
+          conn.verify_mode = OpenSSL::SSL::VERIFY_PEER
+        end
+      end
+      conn
     end
     
     private
+    
+    def normalize_url(url)
+      # dup it in case it's changed
+      url = url.kind_of?(String) ? URL.new(url) : url.dup
+      url.path = '/' if url.path.empty?
+      
+      if !url.full?
+        # if only a path is given, get rest from referer
+        if @referer
+          url.absolute! @referer
+        else
+          raise "Must give a full URL when outside of a block."
+        end
+      end
+      
+      url
+    end
     
     def ssl_version
       [:SSLv3,:SSLv23,:SSLv2].each do |v|
@@ -51,20 +77,7 @@ module RBrowse
     end
     
     def request(klass, url, params = {})
-      # dup the url since it may be modified
-      url = url.kind_of?(String) ? URL.new(url) : url.dup
-      
-      if !url.scheme
-        # if only a path is given, get rest from referer
-        if @referer
-          url.absolute! @referer
-        else
-          raise "Must give a full URL when outside of a block."
-        end
-      end
-      url.path = '/' if url.path == ''
-      
-      http = conn url
+      url = normalize_url url
       
       # create request object
       req = klass.new "#{url.path}#{'?'+url.query if url.query}"
@@ -80,7 +93,9 @@ module RBrowse
       # append data
       req.set_form_data params[:data] if params[:data]
       
-      # execute
+      # execute          
+      http = connection url
+      http.start if !http.started?
       res = http.request req
       
       # parse Set-Cookie response headers
@@ -90,12 +105,9 @@ module RBrowse
       
       # follow redirects
       unless params[:no_follow]
-        while loc = res['Location']
-          loc = URL.new loc
-          if !loc.scheme
-            # compensate for spec-defying path-passers
-            loc.absolute! url
-          end
+        while res['Location']
+          # allows relative locations
+          loc = normalize_url res['Location']
           with_referer url do
             res = request(Net::HTTP::Get, loc, :no_follow => true).http
           end
@@ -119,21 +131,6 @@ module RBrowse
       @referer = ref
       yield if block_given?
       @referer = old_ref
-    end
-    
-    def conn(url)
-      port = url.port || DEFAULT_PORTS[url.scheme]
-      id = [url.host, port, url.scheme]
-      unless (c = @conns[id]) && c.started?
-        c = @conns[id] = Net::HTTP.new(url.host, port)
-        if url.scheme == 'https'
-          c.use_ssl = true
-          c.ssl_version = ssl_version
-          c.verify_mode = OpenSSL::SSL::VERIFY_NONE # unsafe
-        end
-        c.start
-      end
-      c
     end
     
   end
