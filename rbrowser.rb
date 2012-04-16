@@ -34,6 +34,11 @@ class Browser
     chrome: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.11 (KHTML, like Gecko) Chrome/17.0.963.79 Safari/535.11'
   }
   
+  DEFAULT_PORTS = {
+    https: 443,
+    http: 80
+  }
+  
   attr_accessor :user_agent, :cookies
   
   def initialize(user_agent = :default)
@@ -78,7 +83,7 @@ class Browser
       end
     end
     
-    http = conn url[:host], url[:port]
+    http = conn url[:host], (url[:port] || DEFAULT_PORTS[url[:scheme].to_sym])
     if url[:scheme] == 'https'
       http.use_ssl = true
       http.ssl_version = ssl_version
