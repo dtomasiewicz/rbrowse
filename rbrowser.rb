@@ -192,10 +192,12 @@ def collect_form_data(form_node)
       case el.name.downcase
       when 'input'
         case el['type'].downcase
-        when 'radio','checkbox'
-          data[el['name']] = el['value'] || 1 if el.matches?('[@checked="checked"]')
-        when 'submit', 'reset'
-          # do nothing
+        when 'radio', 'checkbox'
+          if el.matches?('[@checked="checked"]')
+            data[el['name']] = el['value'] || 1
+          end
+        when 'submit', 'reset', 'image'
+          # do nothing (usually only passed if clicked)
         else
           data[el['name']] = el['value']
         end
