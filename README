@@ -34,7 +34,7 @@ Example:
 
     b = Browser.new
     b.get 'http://duckduckgo.com' do |res|
-      puts b.get_with_data '/', :q => 'search term'
+      puts b.get_with_data '/', 'q' => 'search term'
     end
 
 From the perspective of the duckduckgo.com web server, the above is equivalent 

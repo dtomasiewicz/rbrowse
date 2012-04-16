@@ -40,10 +40,6 @@ class Browser
   
   # injects the given data into the query string
   def get_with_data(url, data = {}, params = {}, &block)
-    # stringify keys
-    data.keys.each do |k|
-      data[k.to_s] = data.delete k
-    end
     url = split_url url
     qs = (url[:query] ? CGI::parse(url[:query]) : {}).merge data
     url[:query] = qs.keys.map{|k|"#{CGI::escape k}=#{CGI::escape qs[k]}"}.join '&'
