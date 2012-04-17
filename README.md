@@ -1,5 +1,4 @@
-Diving In
-========
+## Diving In
 
 ```ruby
 b = RBrowse.new
@@ -7,8 +6,7 @@ puts b.get 'http://duckduckgo.com'
 ```
 
 
-Cookies
-========
+## Cookies
 
 RBrowse will automatically store and send cookies provided by web servers. The
 manner in which cookies are handled is not guaranteed to be 100% compliant with
@@ -17,8 +15,7 @@ secure. For this reason, you alone are responsible for ensuring that any website
 queried by RBrowse are not sending malicious responses.
 
 
-Referers
-========
+## Referers
 
 When a request sent to a Browser instance is accompanied by a block, the block
 will be executed after a response is received (and after redirects unless
@@ -42,8 +39,7 @@ to a user browsing to the homepage, entering a query in the text box, and clicki
 the search button (or pressing enter).
 
 
-Parsing
-======
+## Parsing
 
 RBrowse exposes a Nokogiri Document object to simplify parsing of responses.
 
@@ -58,11 +54,9 @@ end
 See the [Nokogiri documentation](http://nokogiri.org/) for more information.
 
 
-Forms
-=======
+## Forms
 
-Selection
-------
+### Selection
 
 The first step to emulating a form submission is to find the FORM node on the
 page. This can be accomplished with Page.form:
@@ -86,8 +80,7 @@ The arguments passed to Page.form may be either:
    for information on what constitutes a valid CSS rule.
 
 
-Modification and Submission
--------
+### Modification and Submission
 
 Once you have obtained a `Form`, it can be modified or submitted immediately.
 
