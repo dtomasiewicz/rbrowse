@@ -16,7 +16,7 @@ module RBrowse
     end
     
     def post(url, data = {}, params = {}, &block)
-      request Net::HTTP::Post, url, params.dup.merge(:data => data), &block
+      request Net::HTTP::Post, url, params.merge(:data => data), &block
     end
     
     def get(url, params = {}, &block)
@@ -91,7 +91,15 @@ module RBrowse
       end
       
       # append data
-      req.set_form_data params[:data] if params[:data]
+      if params[:data]
+        if req.kind_of?(Net::HTTP::Get)
+          # inject data into querystring
+          qs = (url.query ? CGI::parse(url.query) : {}).merge data
+          url.query = qs.keys.map{|k| encode_pair k, qs[k]}.join '&'
+        else
+          req.set_form_data params[:data]
+        end
+      end
       
       # execute          
       http = connection url
@@ -124,6 +132,10 @@ module RBrowse
       end
       
       res
+    end
+    
+    def encode_pair(key, value)
+      "#{CGI::escape key.to_s}=#{CGI::escape value.to_s}"
     end
     
     def with_referer(ref, &block)

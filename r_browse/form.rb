@@ -6,7 +6,7 @@ module RBrowse
     
     def initialize(page, form_node)
       @page = page
-      @method = form_node['method'] || 'get'
+      @method = (form_node['method'] || 'GET').upcase
       @action = form_node['action'] || page.url
       @fields = {}
       
@@ -31,7 +31,7 @@ module RBrowse
           when 'submit', 'reset', 'image', 'button'
             return include_activated ? f['value'] : nil
           else
-            # text or otherwise
+            # text, hidden, etc.
             return f['value'] || ''
           end
         when 'select'
@@ -67,8 +67,8 @@ module RBrowse
     
     def submit(activator = nil, &block)
       data = data(activator)
-      if @method.downcase == 'get'
-        return @page.browser.get_with_data(@action, data, &block)
+      if @method == 'GET'
+        return @page.browser.get(@action, {data: data}, &block)
       else
         return @page.browser.post(@action, data, &block)
       end

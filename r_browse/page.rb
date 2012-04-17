@@ -15,7 +15,9 @@ module RBrowse
     end
     
     def form(*selectors)
-      if selectors.length == 1 && selectors[0].kind_of?(Integer)
+      if selectors.length == 0
+        node = dom.at_css 'form'
+      elsif selectors.length == 1 && selectors[0].kind_of?(Integer)
         node = dom.css('form')[selectors[0]]
       elsif selectors.length == 1 && selectors[0].kind_of?(Hash)
         s = ''

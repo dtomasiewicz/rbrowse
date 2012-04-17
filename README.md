@@ -30,7 +30,7 @@ request _path_. When doing so, the domain of the referring request will be assum
 b = RBrowse.new
 b.get 'http://duckduckgo.com' do |page|
   # sends a GET request for '/about' to duckduckgo.com
-  puts b.get_with_data '/about', 'q' => 'search term'
+  puts b.get '/about', :data => {'q' => 'search term'}
 end
 ```
 
@@ -44,8 +44,7 @@ the search button (or pressing enter).
 RBrowse exposes a Nokogiri Document object to simplify parsing of responses.
 
 ```ruby
-b = RBrowse.new
-b.get 'http//duckduckgo.com' do |page|
+RBrowse.new.get 'http//duckduckgo.com' do |page|
   # find all links on the returned page
   links = page.dom.css 'a[@href]'
 end
@@ -62,8 +61,7 @@ The first step to emulating a form submission is to find the FORM node on the
 page. This can be accomplished with `Page.form`:
 
 ```ruby
-b = RBrowse.new
-b.get 'http//duckduckgo.com' do |page|
+RBrowse.new.get 'http//duckduckgo.com' do |page|
   form = page.form 'name' => 'x'
 end
 ```
@@ -85,8 +83,7 @@ The arguments passed to `Page.form` may be either:
 Once you have obtained a `Form`, it can be modified or submitted immediately.
 
 ```ruby
-b = RBrowse.new
-b.get 'http//duckduckgo.com' do |page|
+RBrowse.new.get 'http//duckduckgo.com' do |page|
   if form = page.form('name' => 'x')
     form['q'] = 'my search query'
     results = form.submit
@@ -108,3 +105,19 @@ to that of a regular web browser. That is to say:
    will be considered, unless the field is a checkbox or radiobutton, in which
    case the preceding field will be considered if the checkbox/radio button is
    not _checked_.
+
+
+## File Uploads and Downloads
+
+Binary data transfer is not currently supported by RBrowse, but is next on the 
+TODO list. For now, downloads can be accomplished by working with the 
+[`Net::HTTPResponse`](http://ruby-doc.org/stdlib-1.9.3/libdoc/net/http/rdoc/Net/HTTPResponse.html) 
+object directly. This object is exposed by an `http` call to a `Page` instance:
+
+```ruby
+RBrowse.new.get 'http://somewebsite<.com/some_binary_file.jpg' do |page|
+  open 'some_binary_file.jpg', 'wb' do |file|
+    file.write page.http.body
+  end
+end
+```
