@@ -64,7 +64,7 @@ page. This can be accomplished with `Page.form`:
 ```ruby
 b = RBrowse.new
 b.get 'http//duckduckgo.com' do |page|
-  form = page.form('name' => 'x')
+  form = page.form 'name' => 'x'
 end
 ```
 
@@ -72,12 +72,12 @@ The arguments passed to `Page.form` may be either:
 
  - An `Integer` _n_: in which case the _n_th form on the page is used (zero-
    based)
- - A Hash of attributes and values that will be converted to a form selector
+ - A `Hash` of attributes and values that will be converted to a form selector
    and passed to Nokogiri's [`Node.at_css`](http://nokogiri.org/Nokogiri/XML/Node.html#method-i-at_css)
-   method (e.g. `{'id' => 'bob'}` becomes `"form[@id="bob"]"`
+   method. For example, `{'id' => 'bob'}` becomes the String selector `form[@id="bob"]`.
  - One or more CSS _rules_ that will return a FORM node when passed directly to 
    `Node.at_css`. See Nokogiri's [documentation](http://nokogiri.org/Nokogiri/XML/Node.html#method-i-css)
-   for information on what constitutes a valid CSS rule.
+   for details about supported rule formats.
 
 
 ### Modification and Submission
@@ -95,17 +95,18 @@ b.get 'http//duckduckgo.com' do |page|
 end
 ```
 
-Any fields whose values are not modified will be given default values in a manner
-similar to that used by a regular web browser. That is to say:
+Modified or newly created fields will be sent to the server as long as they are not
+assigned a value of `nil`.
+
+Unmodified fields will be sent with their default values in a manner similar 
+to that of a regular web browser. That is to say:
 
  - button values will not be sent unless their name is passed as the first
    argument to `Form.submit`
  - checkboxes will not be sent at all unless they are checked
  - if multiple fields have the same `name`, only the last field with that name
    will be considered, unless:
-   - the field is a checkbox, in which case the second-last field will be 
-     considered if it is not checked
-   - the field is a radio button, in which case the last (or, in most cases, only)
-     _checked_ field will be considered
-
-Any field that is modified _will_ be passed unless it is given a value of `nil`.
+   - the field is a checkbox, in which case the preceding field will be 
+     considered if the checkbox is not _checked_
+   - the field is a radio button, in which case the last (or only) _checked_ 
+     field will be considered
