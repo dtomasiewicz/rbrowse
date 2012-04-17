@@ -17,11 +17,11 @@ queried by RBrowse are not sending malicious responses.
 
 ## Referers
 
-When a request sent to a Browser instance is accompanied by a block, the block
+When a request sent to a `Browser` instance is accompanied by a block, the block
 will be executed after a response is received (and after redirects unless
 `:no_follow` is specified). Any subsequent requests made from within this block
-will have a Referer header attached with the value of the original request's URL.
-This allows simulation of link clicks and form submissions.
+will have a _Referer_ header attached with the value of the original request's URL.
+This allows easy simulation of link clicks and form submissions.
 
 Additionally, when performing requests within a block, you may supply only the
 request _path_. When doing so, the domain of the referring request will be assumed.
@@ -29,14 +29,13 @@ request _path_. When doing so, the domain of the referring request will be assum
 ```ruby
 b = RBrowse.new
 b.get 'http://duckduckgo.com' do |page|
-  # sends a GET request for '/about' to duckduckgo.com
-  puts b.get '/about', :data => {'q' => 'search term'}
+  # sends a GET request for '/settings.html' to duckduckgo.com
+  puts b.get '/settings.html'
 end
 ```
 
 From the perspective of the duckduckgo.com web server, the above is equivalent 
-to a user browsing to the homepage, entering a query in the text box, and clicking 
-the search button (or pressing enter).
+to a user browsing to the homepage and clicking on the Settings link.
 
 
 ## Parsing
