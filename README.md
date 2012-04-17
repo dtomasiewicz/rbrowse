@@ -59,7 +59,7 @@ See the [Nokogiri documentation](http://nokogiri.org/) for more information.
 ### Selection
 
 The first step to emulating a form submission is to find the FORM node on the
-page. This can be accomplished with Page.form:
+page. This can be accomplished with `Page.form`:
 
 ```ruby
 b = RBrowse.new
@@ -68,12 +68,12 @@ b.get 'http//duckduckgo.com' do |page|
 end
 ```
 
-The arguments passed to Page.form may be either:
+The arguments passed to `Page.form` may be either:
 
  - An `Integer` _n_: in which case the _n_th form on the page is used (zero-
    based)
  - A Hash of attributes and values that will be converted to a form selector
-   and passed to Nokogiri's `[Node.at_css](http://nokogiri.org/Nokogiri/XML/Node.html#method-i-at_css)`
+   and passed to Nokogiri's [`Node.at_css`](http://nokogiri.org/Nokogiri/XML/Node.html#method-i-at_css)
    method (e.g. `{'id' => 'bob'}` becomes `"form[@id="bob"]"`
  - One or more CSS _rules_ that will return a FORM node when passed directly to 
    `Node.at_css`. See Nokogiri's [documentation](http://nokogiri.org/Nokogiri/XML/Node.html#method-i-css)
