@@ -115,7 +115,7 @@ module RBrowse
         end
       end
       
-      res = Page.new res
+      res = Page.new self, url.to_s, res
       
       if block_given?
         with_referer url do
