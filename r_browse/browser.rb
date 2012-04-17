@@ -2,11 +2,6 @@ module RBrowse
 
   class Browser
     
-    DEFAULT_PORTS = {
-      'https' => 443,
-      'http' => 80
-    }
-    
     attr_accessor :user_agent
     
     def initialize(user_agent = 'RBrowse')
@@ -15,33 +10,24 @@ module RBrowse
       @conns = {}
     end
     
-    def post(url, data = {}, params = {}, &block)
-      request Net::HTTP::Post, url, params.merge(:data => data), &block
+    def post(uri, data = {}, params = {}, &block)
+      request Net::HTTP::Post, uri, params.merge(:data => data), &block
     end
     
-    def get(url, params = {}, &block)
-      request Net::HTTP::Get, url, params, &block
+    def get(uri, params = {}, &block)
+      request Net::HTTP::Get, uri, params, &block
     end
     
-    # injects the given data into the query string
-    def get_with_data(url, data = {}, params = {}, &block)
-      url = normalize_url url
-      qs = (url.query ? CGI::parse(url.query) : {}).merge data
-      url.query = qs.keys.map{|k|"#{CGI::escape k}=#{CGI::escape qs[k]}"}.join '&'
-      get url, params, &block
+    def cookies(uri)
+      @cookies.for_uri resolve(uri)
     end
     
-    def cookies(url)
-      @cookies.for_url normalize_url(url)
-    end
-    
-    def connection(url)
-      url = normalize_url url
-      port = url.port || DEFAULT_PORTS[url.scheme]
-      id = [url.host, port, url.scheme]
+    def connection(uri)
+      uri = resolve uri
+      id = [uri.host, uri.port, uri.scheme]
       unless conn = @conns[id]
-        conn = @conns[id] = Net::HTTP.new(url.host, port)
-        if url.scheme == 'https'
+        conn = @conns[id] = Net::HTTP.new(uri.host, uri.port)
+        if uri.scheme.downcase == 'https'
           conn.use_ssl = true
           conn.ssl_version = ssl_version
           conn.verify_mode = OpenSSL::SSL::VERIFY_PEER
@@ -52,21 +38,31 @@ module RBrowse
     
     private
     
-    def normalize_url(url)
-      # dup it in case it's changed
-      url = url.kind_of?(String) ? URL.new(url) : url.dup
-      url.path = '/' if url.path.empty?
+    # TODO implement RFC-1808 compliant relative link expansion
+    def resolve(uri)
+      uri = uri.kind_of?(URI) ? uri.dup : URI.parse(uri)
+      uri.path = '/' unless uri.path =~ /[^\s]/
       
-      if !url.full?
-        # if only a path is given, get rest from referer
+      if !uri.kind_of?(URI::HTTP)
+        # resolve relative URIs using the referer
         if @referer
-          url.absolute! @referer
+          if !uri.path.start_with?('/')
+            uri.path = @referer.path[0..@referer.path.rindex('/')]+uri.path
+          end
+          
+          # dup the referer so that URI.to_s doesn't insert the port number unless
+          # it was originally given
+          uri = URI::HTTP.new @referer.scheme, @referer.userinfo, @referer.host,
+            @referer.port, uri.registry, uri.path, uri.opaque, uri.query, uri.fragment
         else
-          raise "Must give a full URL when outside of a block."
+          raise "Must give a full URI when outside of a block."
         end
       end
       
-      url
+      # case-insensitive hosts
+      uri.host = uri.host.downcase
+      
+      uri
     end
     
     def ssl_version
@@ -76,17 +72,18 @@ module RBrowse
       raise "Could not find a suitable SSL version for use with OpenSSL."
     end
     
-    def request(klass, url, params = {})
-      url = normalize_url url
+    def request(klass, uri, params = {})
+      uri = resolve uri
       
       # create request object
-      req = klass.new "#{url.path}#{'?'+url.query if url.query}"
+      req = klass.new "#{uri.path}#{'?'+uri.query if uri.query}"
       
       # set request headers
-      req['Host'] = url.host
-      req['Host'] += ':'+url.port if url.port
+      req['Host'] = uri.host
+      req['Host'] += ":#{uri.port}" if uri.port
+      req['Referer'] = @referer.to_s if @referer
       req['User-Agent'] = @user_agent
-      if cookie = @cookies.request_header(url)
+      if cookie = @cookies.request_header(uri)
         req['Cookie'] = cookie
       end
       
@@ -94,39 +91,39 @@ module RBrowse
       if params[:data]
         if req.kind_of?(Net::HTTP::Get)
           # inject data into querystring
-          qs = (url.query ? CGI::parse(url.query) : {}).merge params[:data]
-          url.query = qs.keys.map{|k| encode_pair k, qs[k]}.join '&'
+          qs = (uri.query ? CGI::parse(uri.query) : {}).merge params[:data]
+          uri.query = qs.keys.map{|k| encode_pair k, qs[k]}.join '&'
         else
           req.set_form_data params[:data]
         end
       end
       
-      # execute          
-      http = connection url
+      # execute
+      http = connection uri
       http.start if !http.started?
       res = http.request req
       
       # parse Set-Cookie response headers
       if sc_fields = res.get_fields('Set-Cookie')
-        sc_fields.each{|sc| @cookies.set_cookie url, sc}
+        sc_fields.each{|sc| @cookies.set_cookie uri, sc}
       end
       
       # follow redirects
       unless params[:no_follow]
         while res['Location']
           # allows relative locations
-          loc = normalize_url res['Location']
-          with_referer url do
+          loc = resolve res['Location']
+          with_referer uri do
             res = request(Net::HTTP::Get, loc, :no_follow => true).http
           end
-          url = loc
+          uri = loc
         end
       end
       
-      res = Page.new self, url.to_s, res
+      res = Page.new self, uri, res
       
       if block_given?
-        with_referer url do
+        with_referer uri do
           yield res
         end
       end

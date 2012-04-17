@@ -2,11 +2,11 @@ module RBrowse
 
   class Page
 
-    attr_reader :browser, :url, :http
+    attr_reader :browser, :uri, :http
     
-    def initialize(browser, url, http)
+    def initialize(browser, uri, http)
       @browser = browser
-      @url = url
+      @uri = uri.dup.freeze
       @http = http
     end
     

@@ -19,7 +19,6 @@ module RBrowse
 end
 
 require 'r_browse/browser'
-require 'r_browse/url'
 require 'r_browse/cookie_jar'
 require 'r_browse/cookie'
 require 'r_browse/page'

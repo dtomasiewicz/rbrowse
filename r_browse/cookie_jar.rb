@@ -6,8 +6,8 @@ module RBrowse
       @jar = []
     end
     
-    # adds a cookie, given a Set-Cookie header and the request URL
-    def set_cookie(url, sc)
+    # adds a cookie, given a Set-Cookie header and the request URI
+    def set_cookie(uri, sc)
       cookie = Cookie.new
       name, sc = sc.split '=', 2
       value, sc = sc.split ';', 2
@@ -21,17 +21,24 @@ module RBrowse
       
       # restrict by domain-- not spec-compliant and possibly unsafe (allows 
       #   infinite levels of subdomains)
-      if opts['domain'] && opts['domain'] != url.host
-        if opts['domain'].end_with?('.'+url.host)
+      if opts['domain'] && opts['domain'] != uri.host
+        if opts['domain'].end_with?('.'+uri.host)
           cookie.domain = opts['domain']
         else
           return false
         end
       else
-        cookie.domain = url.host
+        cookie.domain = uri.host
       end
       
-      cookie.path = opts['path'] || url.path[0..url.path.rindex('/')]
+      if opts['path']
+        cookie.path = opts['path']
+      else
+        # the resource path is the "directory" containing the request path
+        ri = uri.path.rindex '/'
+        cookie.path = ri ? uri.path[0..ri] : '/'
+      end
+      
       if opts['expires']
         begin
           cookie.expires = DateTime.parse opts['expires']
@@ -44,20 +51,20 @@ module RBrowse
       return true
     end
     
-    def for_url(url)
+    def for_uri(uri)
       # delete expired cookies
       @jar.reject!{|c| c.expires && c.expires <= DateTime.now}
       
       # TODO: this is slow; come up with a better way to index cookies by domain/path
       matched = {}
       @jar.each do |c|
-        if !c.secure || url.scheme == 'https'
+        if !c.secure || uri.scheme == 'https'
           # secure cookies will be ignored unless using https
           unless matched[c.name] && matched[c.name].secure && !c.secure
             # secure cookies won't be overridden by insecure cookies
-            if url.host == c.domain || c.domain.end_with?('.'+url.host)
+            if uri.host == c.domain || c.domain.end_with?('.'+uri.host)
               # domain-matched, check path matching
-              matched[c.name] = c if url.path.start_with?(c.path)
+              matched[c.name] = c if uri.path.start_with?(c.path)
             end
           end
         end
@@ -65,8 +72,8 @@ module RBrowse
       matched
     end
     
-    def request_header(request_url)
-      matched = for_url request_url
+    def request_header(request_uri)
+      matched = for_uri request_uri
       if matched.length > 0
         return matched.values.map do |c|
           "#{CGI::escape(c.name)}=#{CGI::escape(c.value)}"

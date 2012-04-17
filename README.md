@@ -1,8 +1,9 @@
 ## Diving In
 
 ```ruby
-b = RBrowse.new
-puts b.get 'http://duckduckgo.com'
+require 'r_browse'
+browser = RBrowse.new
+puts browser.get 'http://duckduckgo.com'
 ```
 
 
@@ -20,17 +21,17 @@ queried by RBrowse are not sending malicious responses.
 When a request sent to a `Browser` instance is accompanied by a block, the block
 will be executed after a response is received (and after redirects unless
 `:no_follow` is specified). Any subsequent requests made from within this block
-will have a _Referer_ header attached with the value of the original request's URL.
+will have a _Referer_ header attached with the value of the original request's URI.
 This allows easy simulation of link clicks and form submissions.
 
 Additionally, when performing requests within a block, you may supply only the
 request _path_. When doing so, the domain of the referring request will be assumed.
 
 ```ruby
-b = RBrowse.new
-b.get 'http://duckduckgo.com' do
-  # sends a GET request for '/settings.html' to duckduckgo.com
-  puts b.get '/settings.html'
+browser = RBrowse.new
+browser.get 'http://duckduckgo.com' do
+  # send another request to duckduckgo.com
+  puts browser.get '/settings.html'
 end
 ```
 
@@ -116,7 +117,7 @@ connection object.
 ```ruby
 b = RBrowse.new
 # WARNING: the following will open you up to man-in-the-middle attacks
-b.connection('http://google.ca').ssl_verify_mode = OpenSSL::SSL::VERIFY_NONE
+b.connection('https://google.ca').ssl_verify_mode = OpenSSL::SSL::VERIFY_NONE
 ```
 
 
@@ -145,8 +146,9 @@ RBrowse.new.get 'https://example.com/login' do |page|
   if form = page.form('id' => 'login_form')
     form['user'] = 'bob'
     form['password'] = 12345
+    
     if form.submit.success?
-      # assumes a 200 OK response implies a successful login
+      # assuming a 200 OK response implies valid credentials
       puts "Login successful."
     else
       puts "Login failed!"

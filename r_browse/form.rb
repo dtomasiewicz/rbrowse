@@ -7,7 +7,7 @@ module RBrowse
     def initialize(page, form_node)
       @page = page
       @method = (form_node['method'] || 'GET').upcase
-      @action = form_node['action'] || page.url
+      @action = form_node['action'] || page.uri
       @fields = {}
       
       form_node.css('input,select,textarea,button').each do |node|
