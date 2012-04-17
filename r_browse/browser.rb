@@ -39,27 +39,38 @@ module RBrowse
     private
     
     def resolve(uri)
-      uri = uri.kind_of?(URI) ? uri.dup : URI.parse(uri)
-      uri.path = '/' unless uri.path =~ /[^\s]/
-      
-      if !uri.kind_of?(URI::HTTP)
-        if @referer
-          # resolve relative paths using the referer (TODO: not RFC-1808 compliant)
-          if !uri.path.start_with?('/')
-            uri.path = @referer.path[0..@referer.path.rindex('/')]+uri.path
-          end
-          
-          # fill in missing components from referer
-          comps = [:scheme, :userinfo, :host, :port, :registry, :path, :opaque,
-            :query, :fragment]
-          uri = URI::HTTP.new *comps.map{|c| uri.send(c) || @referer.send(c)}
-        else
-          raise "Must give a full URI when outside of a block."
+      if uri.kind_of?(URI::Generic)
+        # there doesn't seem to be a more elegant way to convert a Generic URI to
+        #   an HTTP URI.
+        hsh = {}
+        URI::HTTP.component.each do |c|
+          hsh[c] = uri.send c if uri.respond_to? c
         end
+        uri = URI::HTTP.build hsh
+      else
+        uri = URI::HTTP.new *URI.split(uri)
       end
       
-      # case-insensitive hosts
-      uri.host = uri.host.downcase
+      if @referer
+        uri.scheme ||= @referer.scheme
+        uri.userinfo ||= @referer.userinfo
+        uri.host ||= @referer.host
+        uri.port ||= @referer.port
+      else
+        uri.scheme ||= 'http'
+        raise ArgumentError.new "Hostname required" unless uri.host
+      end
+        
+      uri.normalize!
+      
+      # handle relative URIs (TODO: this is not RFC 1808 compliant)
+      if !uri.path.start_with?('/')
+        if @referer
+          uri.path = @referer.path[0..@referer.path.rindex('/')]+uri.path
+        else
+          raise ArgumentError.new "Cannot resolve relative URI without referer."
+        end
+      end
       
       uri
     end
@@ -80,10 +91,18 @@ module RBrowse
       # set request headers
       req['Host'] = uri.host
       req['Host'] += ":#{uri.port}" if uri.port
-      req['Referer'] = @referer.to_s if @referer
       req['User-Agent'] = @user_agent
       if cookie = @cookies.request_header(uri)
         req['Cookie'] = cookie
+      end
+      
+      if ref = @referer
+        # remove fragment (RFC 2616 14.36) and userinfo (convention)
+        if ref.fragment || ref.user || ref.password
+          ref = @referer.dup
+          ref.fragment = ref.user = ref.password = nil
+        end
+        req['Referer'] = ref.to_s
       end
       
       # append data
