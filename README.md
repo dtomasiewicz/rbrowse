@@ -5,13 +5,13 @@ should go check out [`Mechanize`](https://github.com/tenderlove/mechanize). It's
 stable, tested, compliant with most (all?) relevant RFCs, and has a superset of 
 RBrowse's features.
 
-This library was originally refactored out of a scraper I was writing, before I
+This library was originally refactored out of a scraper I was wrote before I
 was aware of Mechanize's existence. At the time of this writing, I am still
 actively developing RBrowse because it's interesting to me, but I can say with 
 near-certainty that it will never have sufficient test coverage, standards 
 compliance, or documentation for a public release.
 
-Without further adieu, here's some very brief documentation...
+Without further ado, here's some very brief documentation...
 
 
 ## Diving In
