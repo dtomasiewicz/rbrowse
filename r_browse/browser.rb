@@ -19,7 +19,7 @@ module RBrowse
     end
     
     def cookies(uri)
-      @cookies.for_uri resolve(uri)
+      @cookies.for_uri uri
     end
     
     def connection(uri)
@@ -39,34 +39,37 @@ module RBrowse
     private
     
     def resolve(uri)
-      if uri.kind_of?(URI::Generic)
-        # there doesn't seem to be a more elegant way to convert a Generic URI to
-        #   an HTTP URI.
-        hsh = {}
-        URI::HTTP.component.each do |c|
-          hsh[c] = uri.send c if uri.respond_to? c
+      self.class.resolve uri, @referer
+    end
+    
+    def self.resolve(uri, referer = nil)
+      comps = URI.split uri.to_s
+      
+      if !comps[0]
+        if referer
+          comps[0] = referer.scheme
+          comps[1] ||= referer.userinfo
+          comps[2] ||= referer.host
+          comps[3] ||= referer.port if referer.port != referer.default_port
+        else
+          raise ArgumentError.new "Hostname required" unless comps[2]
+          comps[0] = 'http'
         end
-        uri = URI::HTTP.build hsh
-      else
-        uri = URI::HTTP.new *URI.split(uri)
       end
       
-      if @referer
-        uri.scheme ||= @referer.scheme
-        uri.userinfo ||= @referer.userinfo
-        uri.host ||= @referer.host
-        uri.port ||= @referer.port
+      if comps[0] == 'https'
+        uri = URI::HTTPS.new *comps
       else
-        uri.scheme ||= 'http'
-        raise ArgumentError.new "Hostname required" unless uri.host
+        raise ArgumentError.new "Hostname required" unless comps[2]
+        uri = URI::HTTP.new *comps
       end
         
       uri.normalize!
       
       # handle relative URIs (TODO: this is not RFC 1808 compliant)
       if !uri.path.start_with?('/')
-        if @referer
-          uri.path = @referer.path[0..@referer.path.rindex('/')]+uri.path
+        if referer
+          uri.path = referer.path[0..referer.path.rindex('/')]+uri.path
         else
           raise ArgumentError.new "Cannot resolve relative URI without referer."
         end
@@ -129,12 +132,11 @@ module RBrowse
       # follow redirects
       unless params[:no_follow]
         while res['Location']
-          # allows relative locations
-          loc = resolve res['Location']
           with_referer uri do
+            loc = resolve res['Location']
             res = request(Net::HTTP::Get, loc, :no_follow => true).http
+            uri = loc
           end
-          uri = loc
         end
       end
       
@@ -154,10 +156,10 @@ module RBrowse
     end
     
     def with_referer(ref, &block)
-      old_ref = @referer
+      prev_ref = @referer
       @referer = ref
       yield if block_given?
-      @referer = old_ref
+      @referer = prev_ref
     end
     
   end
