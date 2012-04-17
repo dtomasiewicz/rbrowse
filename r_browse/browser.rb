@@ -38,22 +38,21 @@ module RBrowse
     
     private
     
-    # TODO implement RFC-1808 compliant relative link expansion
     def resolve(uri)
       uri = uri.kind_of?(URI) ? uri.dup : URI.parse(uri)
       uri.path = '/' unless uri.path =~ /[^\s]/
       
       if !uri.kind_of?(URI::HTTP)
-        # resolve relative URIs using the referer
         if @referer
+          # resolve relative paths using the referer (TODO: not RFC-1808 compliant)
           if !uri.path.start_with?('/')
             uri.path = @referer.path[0..@referer.path.rindex('/')]+uri.path
           end
           
-          # dup the referer so that URI.to_s doesn't insert the port number unless
-          # it was originally given
-          uri = URI::HTTP.new @referer.scheme, @referer.userinfo, @referer.host,
-            @referer.port, uri.registry, uri.path, uri.opaque, uri.query, uri.fragment
+          # fill in missing components from referer
+          comps = [:scheme, :userinfo, :host, :port, :registry, :path, :opaque,
+            :query, :fragment]
+          uri = URI::HTTP.new *comps.map{|c| uri.send(c) || @referer.send(c)}
         else
           raise "Must give a full URI when outside of a block."
         end
