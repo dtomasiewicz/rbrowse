@@ -65,12 +65,12 @@ module RBrowse
       data
     end
     
-    def submit(activator = nil, &block)
+    def submit(activator = nil, params = {}, &block)
       data = data(activator)
       if @method == 'GET'
-        return @page.browser.get(@action, {data: data}, &block)
+        return @page.browser.get(@action, params.merge(:data => data), &block)
       else
-        return @page.browser.post(@action, data, &block)
+        return @page.browser.post(@action, data, params, &block)
       end
     end
     

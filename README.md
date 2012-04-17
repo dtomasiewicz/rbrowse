@@ -28,7 +28,7 @@ request _path_. When doing so, the domain of the referring request will be assum
 
 ```ruby
 b = RBrowse.new
-b.get 'http://duckduckgo.com' do |page|
+b.get 'http://duckduckgo.com' do
   # sends a GET request for '/settings.html' to duckduckgo.com
   puts b.get '/settings.html'
 end
@@ -67,19 +67,18 @@ end
 
 The arguments passed to `Page.form` may be either:
 
- - An `Integer` _n_: in which case the _n_th form on the page is used (zero-
-   based)
- - A `Hash` of attributes and values that will be converted to a form selector
+ - an `Integer` N in which case the Nth form on the page is used (zero-based).
+ - a `Hash` of attributes and values that will be converted to a form selector
    and passed to Nokogiri's [`Node.at_css`](http://nokogiri.org/Nokogiri/XML/Node.html#method-i-at_css)
    method. For example, `{'id' => 'bob'}` becomes the String selector `form[@id="bob"]`.
- - One or more CSS _rules_ that will return a FORM node when passed directly to 
+ - one or more CSS _rules_ that will return a FORM node when passed directly to 
    `Node.at_css`. See Nokogiri's [documentation](http://nokogiri.org/Nokogiri/XML/Node.html#method-i-css)
    for details about supported rule formats.
 
 
 ### Modification and Submission
 
-Once you have obtained a `Form`, it can be modified or submitted immediately.
+Once you have obtained a `Form` object, it can be modified and submitted.
 
 ```ruby
 RBrowse.new.get 'http//duckduckgo.com' do |page|
@@ -91,7 +90,7 @@ RBrowse.new.get 'http//duckduckgo.com' do |page|
 end
 ```
 
-Modified or newly created fields will be sent to the server as long as they are not
+Modified and newly-created fields will be sent to the server as long as they are not
 assigned a value of `nil`.
 
 Unmodified fields will be sent with their default values in a manner similar 
