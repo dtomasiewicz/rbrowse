@@ -94,7 +94,7 @@ module RBrowse
       if params[:data]
         if req.kind_of?(Net::HTTP::Get)
           # inject data into querystring
-          qs = (url.query ? CGI::parse(url.query) : {}).merge data
+          qs = (url.query ? CGI::parse(url.query) : {}).merge params[:data]
           url.query = qs.keys.map{|k| encode_pair k, qs[k]}.join '&'
         else
           req.set_form_data params[:data]
