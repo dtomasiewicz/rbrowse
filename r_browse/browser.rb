@@ -42,6 +42,7 @@ module RBrowse
       self.class.resolve uri, @referer
     end
     
+    # referer should always be a normalized uri
     def self.resolve(uri, referer = nil)
       comps = URI.split uri.to_s
       
@@ -57,13 +58,7 @@ module RBrowse
         end
       end
       
-      if comps[0] == 'https'
-        uri = URI::HTTPS.new *comps
-      else
-        raise ArgumentError.new "Hostname required" unless comps[2]
-        uri = URI::HTTP.new *comps
-      end
-        
+      uri = comps[0] == 'https' ? URI::HTTPS.new(*comps) : URI::HTTP.new(*comps)
       uri.normalize!
       
       # handle relative URIs (TODO: this is not RFC 1808 compliant)
