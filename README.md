@@ -105,8 +105,6 @@ to that of a regular web browser. That is to say:
    argument to `Form.submit`
  - checkboxes will not be sent at all unless they are checked
  - if multiple fields have the same `name`, only the last field with that name
-   will be considered, unless:
-   - the field is a checkbox, in which case the preceding field will be 
-     considered if the checkbox is not _checked_
-   - the field is a radio button, in which case the last (or only) _checked_ 
-     field will be considered
+   will be considered, unless the field is a checkbox or radiobutton, in which
+   case the preceding field will be considered if the checkbox/radio button is
+   not _checked_.
