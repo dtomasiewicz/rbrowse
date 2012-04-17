@@ -107,6 +107,21 @@ to that of a regular web browser. That is to say:
    not _checked_.
 
 
+## HTTPS
+
+HTTPS is handled transparently by RBrowse. If you need to configure specific SSL
+behaviour to connect to a particular website (for example, if its certificate 
+authority is not a trusted CA on your machine), you can do so through the underlying 
+[`Net::HTTP`](http://www.ruby-doc.org/stdlib-1.9.3/libdoc/net/http/rdoc/Net/HTTP.html)
+connection object.
+
+```ruby
+b = RBrowse.new
+# WARNING: the following will open you up to man-in-the-middle attacks
+b.connection('http://google.ca').ssl_verify_mode = OpenSSL::SSL::VERIFY_NONE
+```
+
+
 ## File Uploads and Downloads
 
 Binary data transfer is not currently supported by RBrowse, but is next on the 
@@ -118,6 +133,28 @@ object directly. This object is exposed by an `http` call to a `Page` instance:
 RBrowse.new.get 'http://somewebsite<.com/some_binary_file.jpg' do |page|
   open 'some_binary_file.jpg', 'wb' do |file|
     file.write page.http.body
+  end
+end
+```
+
+
+## Examples
+
+### Login
+
+```ruby
+RBrowse.new.get 'https://example.com/login' do |page|
+  if form = page.form('id' => 'login_form')
+    form['user'] = 'bob'
+    form['password'] = 12345
+    if form.submit.success?
+      # assumes a 200 OK response implies a successful login
+      puts "Login successful."
+    else
+      puts "Login failed!"
+    end
+  else
+    raise "Failed to find login form."
   end
 end
 ```

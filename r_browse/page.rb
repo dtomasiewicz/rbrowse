@@ -32,6 +32,10 @@ module RBrowse
       node && node.name == 'form' ? Form.new(self, node) : nil
     end
     
+    def success?
+      @http.kind_of?(Net::HTTPSuccess)
+    end
+    
     def to_s
       @http.body
     end
