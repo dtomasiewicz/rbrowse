@@ -14,23 +14,20 @@ module RBrowse
       @dom ||= Nokogiri::HTML(@http.body)
     end
     
-    def form(selector = nil)
-      case selector
-      when nil
-        node = dom.at_css 'form'
-      when Integer
-        node = dom.css('form')[selector]
-      when Hash
+    def form(*selectors)
+      if selectors.length == 1 && selectors[0].kind_of?(Integer)
+        node = dom.css('form')[selectors[0]]
+      elsif selectors.length == 1 && selectors[0].kind_of?(Hash)
         s = ''
-        selector.each_pair do |k,v|
+        selectors[0].each_pair do |k,v|
           s += "[@#{k}=\"#{v}\"]"
         end
         node = dom.at_css s
       else
-        node = dom.at_css(selector)
+        node = dom.at_css *selectors
       end
       
-      Form.new self, node if node && node.name == 'form'
+      node && node.name == 'form' ? Form.new(self, node) : nil
     end
     
     def to_s
