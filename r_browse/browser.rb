@@ -88,7 +88,7 @@ module RBrowse
       
       # set request headers
       req['Host'] = uri.host
-      req['Host'] += ":#{uri.port}" if uri.port
+      req['Host'] += ":#{uri.port}" if uri.port != uri.default_port
       req['User-Agent'] = @user_agent
       if cookie = @cookies.request_header(uri)
         req['Cookie'] = cookie
