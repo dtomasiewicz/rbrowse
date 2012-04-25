@@ -10,6 +10,10 @@ module RBrowse
       @http = http
     end
     
+    def [](header)
+      @http[header]
+    end
+    
     def dom
       @dom ||= Nokogiri::HTML(@http.body)
     end

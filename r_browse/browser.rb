@@ -58,10 +58,10 @@ module RBrowse
         end
       end
       
-      uri = comps[0] == 'https' ? URI::HTTPS.new(*comps) : URI::HTTP.new(*comps)
+      uri = comps[0].downcase == 'https' ? URI::HTTPS.new(*comps) : URI::HTTP.new(*comps)
       uri.normalize!
       
-      # handle relative URIs (TODO: this is not RFC 1808 compliant)
+      # handle relative URIs (TODO: RFC 1808 compliance)
       if !uri.path.start_with?('/')
         if referer
           uri.path = referer.path[0..referer.path.rindex('/')]+uri.path
@@ -83,13 +83,30 @@ module RBrowse
     def request(klass, uri, params = {})
       uri = resolve uri
       
+      # append data
+      if data = params[:data]
+        data = URI.encode_www_form(data) if data.kind_of?(Hash)
+        
+        if klass == Net::HTTP::Get
+          # inject data into querystring
+          uri.query = uri.query ? uri.query+'&'+data : data
+          data = nil
+        end
+      end
+      
       # create request object
       req = klass.new "#{uri.path}#{'?'+uri.query if uri.query}"
       
-      # set request headers
+      if data
+        req.body = data
+        req.content_type = 'application/x-www-form-urlencoded'
+      end
+      
+      ## request headers (only Host is required by spec)
+      
       req['Host'] = uri.host
       req['Host'] += ":#{uri.port}" if uri.port != uri.default_port
-      req['User-Agent'] = @user_agent
+      req['User-Agent'] = @user_agent if @user_agent
       if cookie = @cookies.request_header(uri)
         req['Cookie'] = cookie
       end
@@ -101,17 +118,6 @@ module RBrowse
           ref.fragment = ref.user = ref.password = nil
         end
         req['Referer'] = ref.to_s
-      end
-      
-      # append data
-      if params[:data]
-        if req.kind_of?(Net::HTTP::Get)
-          # inject data into querystring
-          qs = (uri.query ? CGI::parse(uri.query) : {}).merge params[:data]
-          uri.query = qs.keys.map{|k| encode_pair k, qs[k]}.join '&'
-        else
-          req.set_form_data params[:data]
-        end
       end
       
       # execute
@@ -144,10 +150,6 @@ module RBrowse
       end
       
       res
-    end
-    
-    def encode_pair(key, value)
-      "#{CGI::escape key.to_s}=#{CGI::escape value.to_s}"
     end
     
     def with_referer(ref, &block)

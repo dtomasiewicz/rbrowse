@@ -8,65 +8,83 @@ module RBrowse
       @page = page
       @method = (form_node['method'] || 'GET').upcase
       @action = form_node['action'] || page.uri
-      @fields = {}
+      
+      # fields are stored as an array to preserve form ordering
+      @fields = []
       
       form_node.css('input,select,textarea,button').each do |node|
-        self[node['name']] = node if node['name']
-      end
-    end
-    
-    def field_value(name, include_activated = false)
-      return nil if !@fields[name]
-      
-      @fields[name].each do |f|
-        return f if !f.kind_of?(Nokogiri::XML::Node)
+        next unless node['name'] && (value = self.class.node_value node)
         
-        case f.name.downcase
+        case node.name
+        when 'select', 'textarea'
+          rel = true
         when 'input'
-          case (f['type'] || 'text').downcase
-          when 'radio', 'checkbox'
-            if f.matches? '[@checked="checked"]'
-              return f['value'] || '1'
-            end
-          when 'submit', 'reset', 'image', 'button'
-            return include_activated ? f['value'] : nil
+          case (node['type'] || 'text').downcase
+          when 'submit', 'button', 'reset', 'image'
+            rel = false
+          when 'checkbox', 'radio'
+            rel = node.matches?('[@checked="checked"]')
           else
-            # text, hidden, etc.
-            return f['value'] || ''
+            rel = true
           end
-        when 'select'
-          selected = f.at_css 'option[@selected="selected"]'
-          return selected ? selected['value'] : nil
-        when 'textarea'
-          return f.inner_text # TODO: should this be decoded?
-        when 'button'
-          return include_activated ? f['value'] : nil
+        else
+          rel = false
         end
+        
+        @fields << Field.new(node['name'], value, rel)
       end
-      
-      return nil
     end
     
-    def [](name)
-      field_value name, true
+    def extend(field, value)
+      @fields << Field.new(field, value.to_s, true) unless value == nil
     end
     
-    def []=(name, value)
-      @fields[name] = [] if !@fields[name]
-      @fields[name].unshift value
+    def set(field, value)
+      @fields.delete_if {|f| f.name == field}
+      extend field, value
+    end
+    alias_method :[]=, :set
+    
+    # if only_relevant is true, submission inputs and unchecked checkboxes/radio
+    # buttons will be ignored
+    def get_all(field, only_relevant = false)
+      @fields.select do |f|
+        f.name == field && (!only_relevant || f.relevant)
+      end.map &:value
     end
     
-    def data(activator = nil)
-      data = {}
-      @fields.keys.each do |name|
-        value = field_value name, activator == name
-        data[name] = value if value
+    # will return a string, or nil iff node is a SELECT with no OPTION selected
+    def self.node_value(node)
+      case node.name
+      when 'input'
+        case (node['type'] || 'text').downcase
+        when 'checkbox', 'radio'
+          node['value'] || 'on'
+        else
+          node['value']
+        end
+      when 'button'
+        node['value']
+      when 'textarea'
+        node.inner_text
+      when 'select'
+        sel = node.at_css 'option[@selected="selected"]'
+        sel ? (sel['value'] || '') : nil
+      else
+        nil
       end
-      data
     end
+    
+    def get(field, only_relevant = false)
+      get_all(field, only_relevant).last
+    end
+    alias_method :[], :get
     
     def submit(activator = nil, params = {}, &block)
-      data = data(activator)
+      data = @fields.select{|f| f.relevant || f.name == activator}.map do |f|
+        "#{CGI::escape f.name}=#{CGI::escape f.value}"
+      end.join '&'
+      
       if @method == 'GET'
         return @page.browser.get(@action, params.merge(:data => data), &block)
       else
@@ -74,6 +92,15 @@ module RBrowse
       end
     end
     
+  end
+  
+  class Field
+    attr_reader :name, :value, :relevant
+    def initialize(name, value, relevant)
+      @name = name
+      @value = value
+      @relevant = relevant
+    end
   end
   
 end
